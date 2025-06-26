@@ -5,6 +5,7 @@ local Character = Player.Character or Player.CharacterAdded:Wait()
 
 -- create the UI
 local screenGui = Instance.new("ScreenGui")
+screenGui.ResetOnSpawn = false
 screenGui.Parent = Player:WaitForChild("PlayerGui")
 
 local mainFrame = Instance.new("Frame")
