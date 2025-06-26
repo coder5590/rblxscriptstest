@@ -14,6 +14,7 @@ local draggingSlider = false   -- true while any slider is being dragged
 -- screen-gui container
 --------------------------------------------------
 local gui        = Instance.new("ScreenGui", player:WaitForChild("PlayerGui"))
+gui.ResetOnSpawn = false
 local main       = Instance.new("Frame", gui)
 main.Size        = UDim2.new(0, 450, 0, 150)
 main.Position    = UDim2.new(0, 10, 0, 10)
