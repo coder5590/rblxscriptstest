@@ -8,6 +8,7 @@ local humanoid = (me.Character or me.CharacterAdded:Wait()):WaitForChild("Humano
 -- main gui container
 --------------------------------------------------------------------
 local gui  = Instance.new("ScreenGui", me:WaitForChild("PlayerGui"))
+gui.ResetOnSpawn = false
 local main = Instance.new("Frame", gui)
 main.Size  = UDim2.new(0, 300, 0, 120)
 main.Position = UDim2.new(0, 10, 0, 10)
