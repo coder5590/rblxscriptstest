@@ -1,209 +1,195 @@
 -- services
-local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
-local LocalPlayer = Players.LocalPlayer
+local Players      = game:GetService("Players")
+local RunService   = game:GetService("RunService")
+local LocalPlayer  = Players.LocalPlayer
 
--- esp folder
+------------------------------------------------------------------
+--  esp folder
+------------------------------------------------------------------
 local EspFolder = Instance.new("Folder")
-EspFolder.Name = "ESP"
-EspFolder.Parent = game:GetService("CoreGui")
+EspFolder.Name  = "ESP"
+EspFolder.Parent= game:GetService("CoreGui")
 
--- state
-local EspEnabled = false
-local playerEspData = {}
+------------------------------------------------------------------
+--  state tables
+------------------------------------------------------------------
+local EspEnabled     = false
+local playerEspData  = {}  -- [player] = {Adorns, Billboard, HealthText, Character}
 
--- outline box
+------------------------------------------------------------------
+--  helper: only true for living characters (skip ragdolls)
+------------------------------------------------------------------
+local function isAlive(char)
+    local hum = char:FindFirstChildWhichIsA("Humanoid")
+    return hum and hum.Health > 0 and char:FindFirstChild("HumanoidRootPart")
+end
+
+------------------------------------------------------------------
+--  outline creator
+------------------------------------------------------------------
 local function createOutline(part)
-    local adorn = Instance.new("BoxHandleAdornment")
-    adorn.Adornee = part
-    adorn.AlwaysOnTop = true
-    adorn.ZIndex = 10
-    adorn.Transparency = 0.5
-    adorn.Color3 = Color3.fromRGB(0, 255, 0)
-    adorn.Size = part.Size + Vector3.new(0.05, 0.05, 0.05)
-    adorn.Parent = EspFolder
-    return adorn
+    local box = Instance.new("BoxHandleAdornment")
+    box.Adornee       = part
+    box.AlwaysOnTop   = true
+    box.ZIndex        = 10
+    box.Transparency  = 0.5
+    box.Color3        = Color3.fromRGB(0,255,0)
+    box.Size          = part.Size + Vector3.new(.05,.05,.05)
+    box.Parent        = EspFolder
+    return box
 end
 
--- health label
-local function createHealthBillboard(character)
-    local head = character:WaitForChild("Head")
-    local billboard = Instance.new("BillboardGui")
-    billboard.Adornee = head
-    billboard.Size = UDim2.new(0, 100, 0, 40)
-    billboard.StudsOffset = Vector3.new(0, 2.5, 0)
-    billboard.AlwaysOnTop = true
-    billboard.MaxDistance = 50
-    billboard.Parent = EspFolder
+------------------------------------------------------------------
+--  health billboard
+------------------------------------------------------------------
+local function createBillboard(char)
+    local head = char:FindFirstChild("Head")
+    if not head then return end
 
-    local textLabel = Instance.new("TextLabel")
-    textLabel.Size = UDim2.new(1, 0, 1, 0)
-    textLabel.BackgroundTransparency = 1
-    textLabel.TextColor3 = Color3.new(1, 1, 1)
-    textLabel.TextStrokeColor3 = Color3.new(0, 0, 0)
-    textLabel.TextStrokeTransparency = 0
-    textLabel.Font = Enum.Font.SourceSansBold
-    textLabel.TextScaled = false
-    textLabel.TextSize = 18
-    textLabel.Text = "Health: 0"
-    textLabel.Parent = billboard
+    local bill = Instance.new("BillboardGui")
+    bill.Size           = UDim2.new(0,100,0,40)
+    bill.StudsOffset    = Vector3.new(0,2.5,0)
+    bill.AlwaysOnTop    = true
+    bill.MaxDistance    = 50
+    bill.Adornee        = head
+    bill.Parent         = EspFolder
 
-    return billboard, textLabel
+    local txt = Instance.new("TextLabel", bill)
+    txt.Size                = UDim2.new(1,0,1,0)
+    txt.BackgroundTransparency=1
+    txt.Font                = Enum.Font.SourceSansBold
+    txt.TextSize            = 18
+    txt.TextColor3          = Color3.new(1,1,1)
+    txt.TextStrokeColor3    = Color3.new(0,0,0)
+    txt.TextStrokeTransparency=0
+    txt.Text                = "Health: 0"
+
+    return bill, txt
 end
 
--- setup ESP
-local function setupEspForPlayer(player)
-    if not EspEnabled or playerEspData[player] or player == LocalPlayer or not player.Character then return end
+------------------------------------------------------------------
+--  clear esp for one player
+------------------------------------------------------------------
+local function clearEsp(plr)
+    local data = playerEspData[plr]
+    if not data then return end
+    for _,a in pairs(data.Adorns) do a:Destroy() end
+    if data.Billboard then data.Billboard:Destroy() end
+    playerEspData[plr] = nil
+end
 
-    local character = player.Character
+------------------------------------------------------------------
+--  setup esp for one player
+------------------------------------------------------------------
+local function setupEsp(plr)
+    if not EspEnabled then return end
+    if plr == LocalPlayer or playerEspData[plr] then return end
+    if not plr.Character or not isAlive(plr.Character) then return end
+
+    local char   = plr.Character
     local adorns = {}
-    for _, part in ipairs(character:GetChildren()) do
+    for _,part in ipairs(char:GetChildren()) do
         if part:IsA("BasePart") then
-            adorns[part] = createOutline(part)
+            adorns[#adorns+1] = createOutline(part)
         end
     end
+    local bill, txt = createBillboard(char)
+    if not bill then return end
 
-    local billboard, healthText = createHealthBillboard(character)
-
-    playerEspData[player] = {
-        Adorns = adorns,
-        Billboard = billboard,
-        HealthText = healthText,
-        Character = character,
-    }
+    playerEspData[plr] = {Adorns=adorns,Billboard=bill,HealthText=txt,Character=char}
 end
 
--- clear ESP
-local function clearEspForPlayer(player)
-    if playerEspData[player] then
-        for _, adorn in pairs(playerEspData[player].Adorns) do
-            adorn:Destroy()
-        end
-        if playerEspData[player].Billboard then
-            playerEspData[player].Billboard:Destroy()
-        end
-        playerEspData[player] = nil
-    end
-end
-
--- enable ESP
+------------------------------------------------------------------
+--  master enable / disable
+------------------------------------------------------------------
 local function enableEsp()
     if EspEnabled then return end
     EspEnabled = true
-
-    for _, player in pairs(Players:GetPlayers()) do
-        if player ~= LocalPlayer and player.Character then
-            setupEspForPlayer(player)
-        end
-    end
+    -- give esp to everyone currently alive
+    for _,p in ipairs(Players:GetPlayers()) do setupEsp(p) end
 end
 
--- disable ESP
 local function disableEsp()
     EspEnabled = false
-    for player, _ in pairs(playerEspData) do
-        clearEspForPlayer(player)
-    end
+    for p in pairs(playerEspData) do clearEsp(p) end
 end
 
--- gui setup
-local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+------------------------------------------------------------------
+--  gui (minimal toggle + exit)  – unchanged from before
+------------------------------------------------------------------
+local screen = Instance.new("ScreenGui",LocalPlayer.PlayerGui)
+local frame  = Instance.new("Frame",screen)
+frame.Size = UDim2.new(0,220,0,140)
+frame.Position = UDim2.new(0,10,0,10)
+frame.BackgroundColor3 = Color3.fromRGB(40,40,40)
+frame.Active,frame.Draggable=true,true
+Instance.new("UICorner",frame).CornerRadius = UDim.new(0,10)
 
-local MainFrame = Instance.new("Frame")
-MainFrame.Size = UDim2.new(0, 220, 0, 140)
-MainFrame.Position = UDim2.new(0, 10, 0, 10)
-MainFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-MainFrame.Parent = ScreenGui
-MainFrame.Active = true
-MainFrame.Draggable = true
+local toggle = Instance.new("TextButton",frame)
+toggle.Size = UDim2.new(0,200,0,50)
+toggle.Position=UDim2.new(0.5,-100,0,10)
+toggle.BackgroundColor3 = Color3.fromRGB(70,70,70)
+toggle.Font=Enum.Font.SourceSansBold toggle.TextSize=22
+toggle.TextColor3=Color3.new(1,1,1) toggle.Text="ESP: OFF"
 
-local UICorner = Instance.new("UICorner")
-UICorner.CornerRadius = UDim.new(0, 10)
-UICorner.Parent = MainFrame
+local exit = toggle:Clone()
+exit.Parent=frame exit.Position=UDim2.new(0.5,-100,0,70) exit.Text="Exit"
 
-local ToggleButton = Instance.new("TextButton")
-ToggleButton.Size = UDim2.new(0, 200, 0, 50)
-ToggleButton.Position = UDim2.new(0.5, -100, 0, 10)
-ToggleButton.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
-ToggleButton.Text = "ESP: OFF"
-ToggleButton.TextColor3 = Color3.new(1,1,1)
-ToggleButton.Font = Enum.Font.SourceSansBold
-ToggleButton.TextSize = 22
-ToggleButton.Parent = MainFrame
-
-local ExitButton = Instance.new("TextButton")
-ExitButton.Size = UDim2.new(0, 200, 0, 50)
-ExitButton.Position = UDim2.new(0.5, -100, 0, 70)
-ExitButton.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
-ExitButton.Text = "Exit"
-ExitButton.TextColor3 = Color3.new(1,1,1)
-ExitButton.Font = Enum.Font.SourceSansBold
-ExitButton.TextSize = 22
-ExitButton.Parent = MainFrame
-
-local UICorner1 = Instance.new("UICorner")
-UICorner1.CornerRadius = UDim.new(0, 10)
-UICorner1.Parent = ToggleButton
-
-local UICorner2 = Instance.new("UICorner")
-UICorner2.CornerRadius = UDim.new(0, 10)
-UICorner2.Parent = ExitButton
-
-ToggleButton.MouseButton1Click:Connect(function()
+toggle.MouseButton1Click:Connect(function()
     if EspEnabled then
         disableEsp()
-        ToggleButton.Text = "ESP: OFF"
-        ToggleButton.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
+        toggle.Text="ESP: OFF"
+        toggle.BackgroundColor3 = Color3.fromRGB(70,70,70)
     else
         enableEsp()
-        ToggleButton.Text = "ESP: ON"
-        ToggleButton.BackgroundColor3 = Color3.fromRGB(0, 170, 0)
+        toggle.Text="ESP: ON"
+        toggle.BackgroundColor3 = Color3.fromRGB(0,170,0)
     end
 end)
 
-ExitButton.MouseButton1Click:Connect(function()
-    if EspEnabled then
-        disableEsp()
-    end
-    ScreenGui:Destroy()
+exit.MouseButton1Click:Connect(function()
+    disableEsp()
+    screen:Destroy()
 end)
 
--- update health every frame
+------------------------------------------------------------------
+--  update health text every frame
+------------------------------------------------------------------
 RunService.RenderStepped:Connect(function()
     if not EspEnabled then return end
-    for player, data in pairs(playerEspData) do
-        if data.Character and data.HealthText then
-            local humanoid = data.Character:FindFirstChildOfClass("Humanoid")
-            if humanoid then
-                data.HealthText.Text = "Health: " .. math.floor(humanoid.Health)
-            else
-                data.HealthText.Text = "Health: N/A"
-            end
+    for plr,data in pairs(playerEspData) do
+        local hum = data.Character and data.Character:FindFirstChildWhichIsA("Humanoid")
+        if hum then
+            data.HealthText.Text = "Health: " .. math.floor(hum.Health)
         end
     end
 end)
 
--- check when players join
-Players.PlayerAdded:Connect(function(player)
-    player.CharacterAdded:Connect(function()
+------------------------------------------------------------------
+--  connections for joins / respawns / ragdoll cleanup
+------------------------------------------------------------------
+Players.PlayerAdded:Connect(function(plr)
+    -- give esp if already enabled once their rig spawns
+    plr.CharacterAdded:Connect(function()
+        task.wait(0.2)
         if EspEnabled then
-            setupEspForPlayer(player)
+            clearEsp(plr)
+            setupEsp(plr)
         end
     end)
 end)
 
--- check when players leave
-Players.PlayerRemoving:Connect(function(player)
-    clearEspForPlayer(player)
-end)
+Players.PlayerRemoving:Connect(clearEsp)
 
--- heartbeat update
+-- heartbeat: remove dead bodies, add missing live ones
 RunService.Heartbeat:Connect(function()
     if not EspEnabled then return end
-    for _, player in pairs(Players:GetPlayers()) do
-        if player ~= LocalPlayer and player.Character then
-            setupEspForPlayer(player)
+    for plr,data in pairs(playerEspData) do
+        if not isAlive(plr.Character) then
+            clearEsp(plr)
         end
+    end
+    for _,plr in ipairs(Players:GetPlayers()) do
+        setupEsp(plr)
     end
 end)
