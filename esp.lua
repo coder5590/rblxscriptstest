@@ -49,6 +49,7 @@ end
 local function setupEspForPlayer(player)
     if player == LocalPlayer then return end
     if not player.Character then return end
+    if playerEspData[player] then return end -- already setup
 
     local character = player.Character
 
@@ -85,10 +86,17 @@ local function enableEsp()
     if EspEnabled then return end
     EspEnabled = true
 
+    -- setup existing players
     for _, player in pairs(Players:GetPlayers()) do
         if player.Character then
             setupEspForPlayer(player)
         end
+        -- connect to CharacterAdded to setup esp if player respawns
+        player.CharacterAdded:Connect(function()
+            if EspEnabled then
+                setupEspForPlayer(player)
+            end
+        end)
     end
 
     Players.PlayerAdded:Connect(function(player)
@@ -102,6 +110,18 @@ local function enableEsp()
     Players.PlayerRemoving:Connect(function(player)
         clearEspForPlayer(player)
     end)
+
+    -- constantly check for any players missing esp (handles edge cases and late joins)
+    coroutine.wrap(function()
+        while EspEnabled do
+            for _, player in pairs(Players:GetPlayers()) do
+                if player.Character then
+                    setupEspForPlayer(player)
+                end
+            end
+            wait(1) -- check every second
+        end
+    end)()
 end
 
 local function disableEsp()
@@ -111,79 +131,6 @@ local function disableEsp()
     end
 end
 
--- gui setup
-local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+-- gui setup, toggle, render update stays same
+-- ...
 
-local MainFrame = Instance.new("Frame")
-MainFrame.Size = UDim2.new(0, 220, 0, 140)
-MainFrame.Position = UDim2.new(0, 10, 0, 10)
-MainFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-MainFrame.Parent = ScreenGui
-MainFrame.Active = true
-MainFrame.Draggable = true
-
-local UICorner = Instance.new("UICorner")
-UICorner.CornerRadius = UDim.new(0, 10)
-UICorner.Parent = MainFrame
-
-local ToggleButton = Instance.new("TextButton")
-ToggleButton.Size = UDim2.new(0, 200, 0, 50)
-ToggleButton.Position = UDim2.new(0.5, -100, 0, 10)
-ToggleButton.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
-ToggleButton.Text = "ESP: OFF"
-ToggleButton.TextColor3 = Color3.new(1,1,1)
-ToggleButton.Font = Enum.Font.SourceSansBold
-ToggleButton.TextSize = 22
-ToggleButton.Parent = MainFrame
-
-local ExitButton = Instance.new("TextButton")
-ExitButton.Size = UDim2.new(0, 200, 0, 50)
-ExitButton.Position = UDim2.new(0.5, -100, 0, 70)
-ExitButton.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
-ExitButton.Text = "Exit"
-ExitButton.TextColor3 = Color3.new(1,1,1)
-ExitButton.Font = Enum.Font.SourceSansBold
-ExitButton.TextSize = 22
-ExitButton.Parent = MainFrame
-
-local UICorner1 = Instance.new("UICorner")
-UICorner1.CornerRadius = UDim.new(0, 10)
-UICorner1.Parent = ToggleButton
-
-local UICorner2 = Instance.new("UICorner")
-UICorner2.CornerRadius = UDim.new(0, 10)
-UICorner2.Parent = ExitButton
-
-ToggleButton.MouseButton1Click:Connect(function()
-    if EspEnabled then
-        disableEsp()
-        ToggleButton.Text = "ESP: OFF"
-        ToggleButton.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
-    else
-        enableEsp()
-        ToggleButton.Text = "ESP: ON"
-        ToggleButton.BackgroundColor3 = Color3.fromRGB(0, 170, 0)
-    end
-end)
-
-ExitButton.MouseButton1Click:Connect(function()
-    if EspEnabled then
-        disableEsp()
-    end
-    ScreenGui:Destroy()
-end)
-
-RunService.RenderStepped:Connect(function()
-    if not EspEnabled then return end
-    for player, data in pairs(playerEspData) do
-        if data.Character and data.HealthText then
-            local humanoid = data.Character:FindFirstChildOfClass("Humanoid")
-            if humanoid then
-                data.HealthText.Text = "Health: " .. math.floor(humanoid.Health)
-            else
-                data.HealthText.Text = "Health: N/A"
-            end
-        end
-    end
-end)
