@@ -1,14 +1,18 @@
+-- services
 local Players = game:GetService("Players")
-local LocalPlayer = Players.LocalPlayer
 local RunService = game:GetService("RunService")
+local LocalPlayer = Players.LocalPlayer
 
+-- esp folder
 local EspFolder = Instance.new("Folder")
 EspFolder.Name = "ESP"
 EspFolder.Parent = game:GetService("CoreGui")
 
+-- state
 local EspEnabled = false
 local playerEspData = {}
 
+-- outline box
 local function createOutline(part)
     local adorn = Instance.new("BoxHandleAdornment")
     adorn.Adornee = part
@@ -21,6 +25,7 @@ local function createOutline(part)
     return adorn
 end
 
+-- health label
 local function createHealthBillboard(character)
     local head = character:WaitForChild("Head")
     local billboard = Instance.new("BillboardGui")
@@ -46,14 +51,11 @@ local function createHealthBillboard(character)
     return billboard, textLabel
 end
 
+-- setup ESP
 local function setupEspForPlayer(player)
-    if playerEspData[player] then return end
-
-    if player == LocalPlayer then return end
-    if not player.Character then return end
+    if not EspEnabled or playerEspData[player] or player == LocalPlayer or not player.Character then return end
 
     local character = player.Character
-
     local adorns = {}
     for _, part in ipairs(character:GetChildren()) do
         if part:IsA("BasePart") then
@@ -71,6 +73,7 @@ local function setupEspForPlayer(player)
     }
 end
 
+-- clear ESP
 local function clearEspForPlayer(player)
     if playerEspData[player] then
         for _, adorn in pairs(playerEspData[player].Adorns) do
@@ -83,40 +86,19 @@ local function clearEspForPlayer(player)
     end
 end
 
+-- enable ESP
 local function enableEsp()
     if EspEnabled then return end
     EspEnabled = true
 
     for _, player in pairs(Players:GetPlayers()) do
-        if player.Character then
+        if player ~= LocalPlayer and player.Character then
             setupEspForPlayer(player)
         end
     end
-
-    Players.PlayerAdded:Connect(function(player)
-        player.CharacterAdded:Connect(function()
-            if EspEnabled then
-                setupEspForPlayer(player)
-            end
-        end)
-    end)
-
-    Players.PlayerRemoving:Connect(function(player)
-        clearEspForPlayer(player)
-    end)
-
-    coroutine.wrap(function()
-        while EspEnabled do
-            for _, player in pairs(Players:GetPlayers()) do
-                if player.Character then
-                    setupEspForPlayer(player)
-                end
-            end
-            wait(1)
-        end
-    end)()
 end
 
+-- disable ESP
 local function disableEsp()
     EspEnabled = false
     for player, _ in pairs(playerEspData) do
@@ -187,6 +169,7 @@ ExitButton.MouseButton1Click:Connect(function()
     ScreenGui:Destroy()
 end)
 
+-- update health every frame
 RunService.RenderStepped:Connect(function()
     if not EspEnabled then return end
     for player, data in pairs(playerEspData) do
@@ -199,5 +182,28 @@ RunService.RenderStepped:Connect(function()
             end
         end
     end
-end) 
+end)
 
+-- check when players join
+Players.PlayerAdded:Connect(function(player)
+    player.CharacterAdded:Connect(function()
+        if EspEnabled then
+            setupEspForPlayer(player)
+        end
+    end)
+end)
+
+-- check when players leave
+Players.PlayerRemoving:Connect(function(player)
+    clearEspForPlayer(player)
+end)
+
+-- heartbeat update
+RunService.Heartbeat:Connect(function()
+    if not EspEnabled then return end
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character then
+            setupEspForPlayer(player)
+        end
+    end
+end)
